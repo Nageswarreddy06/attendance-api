@@ -349,7 +349,7 @@ def _department_trend_pipeline(department: str, from_day: date, to_day: date) ->
             {"$match": {"employee.department": department}},
             {"$project": {"_id": 0, "day": {"$dateFromString": {"dateString": "$date"}},
                 "present_count": {"$cond": [{"$in": ["$status", list(PRESENT_STATUSES)]}, {"$cond": [{"$ifNull": ["$half_day", False]}, 0.5, 1]}, 0]},
-                "late_count": {"$cond": [{"$gt": [{"$ifNull": ["$late_minutes", 0]}, 0]}, 1, 0]}},
+                "late_count": {"$cond": [{"$gt": [{"$ifNull": ["$late_minutes", 0]}, 0]}, 1, 0]}}},
         ]}},
         {"$group": {"_id": "$day", "present_count": {"$sum": "$present_count"}, "late_count": {"$sum": "$late_count"}}},
         {"$project": {"_id": 0, "day": "$_id", "present_count": 1, "late_count": 1}},
