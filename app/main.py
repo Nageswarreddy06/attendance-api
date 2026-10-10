@@ -249,7 +249,7 @@ def _monthly_employee_pipeline(emp_code: str, month: str) -> list[dict]:
         {"$addFields": {
             "_logs": {
                 "$map": {
-                    "input": {"$filter": {"input": "$_logs", "as": "r", "cond": {"$gte": ["$$r.date", "$_period_start_str"]}},
+                    "input": {"$filter": {"input": "$_logs", "as": "r", "cond": {"$gte": ["$$r.date", "$_period_start_str"]}}},
                     "as": "r",
                     "in": {"$mergeObjects": ["$$r", {"_dow": {"$isoDayOfWeek": {"$dateFromString": {"dateString": "$$r.date"}}}}]},
                 }
@@ -282,7 +282,7 @@ def _department_summary_pipeline(month: str, department: Optional[str]) -> list[
         {"$addFields": {
             "_logs": {
                 "$map": {
-                    "input": {"$filter": {"input": "$_all_logs", "as": "r", "cond": {"$gte": ["$$r.date", {"$cond": [{"$gt": ["$joined_on", month_start]}, "$joined_on", month_start]}]}},
+                    "input": {"$filter": {"input": "$_all_logs", "as": "r", "cond": {"$gte": ["$$r.date", {"$cond": [{"$gt": ["$joined_on", month_start]}, "$joined_on", month_start]}]}}},
                     "as": "r",
                     "in": {"$mergeObjects": ["$$r", {"_dow": {"$isoDayOfWeek": {"$dateFromString": {"dateString": "$$r.date"}}}}]},
                 }
@@ -325,7 +325,7 @@ def _late_leaderboard_pipeline(month: str, limit: int, department: Optional[str]
         pipeline.append({"$match": {"employee.department": department}})
     pipeline.extend([
         {"$set": {"emp_code": "$_id", "name": "$employee.name", "department": "$employee.department"}},
-        {"$setWindowFields": {"sortBy": {"total_late_minutes": -1}, "output": {"rank": {"$rank": {}}}},
+        {"$setWindowFields": {"sortBy": {"total_late_minutes": -1}, "output": {"rank": {"$rank": {}}}}},
         {"$match": {"rank": {"$lte": limit}}},
         {"$sort": {"total_late_minutes": -1, "emp_code": 1}},
         {"$project": {"_id": 0, "rank": 1, "emp_code": 1, "name": 1, "department": 1, "total_late_minutes": 1, "late_count": 1}},
@@ -351,21 +351,21 @@ def _department_trend_pipeline(department: str, from_day: date, to_day: date) ->
                 "present_count": {"$cond": [{"$in": ["$status", list(PRESENT_STATUSES)]}, {"$cond": [{"$ifNull": ["$half_day", False]}, 0.5, 1]}, 0]},
                 "late_count": {"$cond": [{"$gt": [{"$ifNull": ["$late_minutes", 0]}, 0]}, 1, 0]}},
         ]}},
-        {"$group": {"_id": "$day", "present_count": {"$sum": "$present_count"}, "late_count": {"$sum": "$late_count"}},
+        {"$group": {"_id": "$day", "present_count": {"$sum": "$present_count"}, "late_count": {"$sum": "$late_count"}}},
         {"$project": {"_id": 0, "day": "$_id", "present_count": 1, "late_count": 1}},
         {"$densify": {"field": "day", "range": {"bounds": [start_dt, bounds_end], "step": 1, "unit": "day"}}},
         {"$set": {"date": {"$dateToString": {"date": "$day", "format": "%Y-%m-%d", "timezone": "UTC"}},
             "present_count": {"$ifNull": ["$present_count", 0]}, "late_count": {"$ifNull": ["$late_count", 0]},
-            "is_working_day": {"$lte": [{"$isoDayOfWeek": "$day"}, 5]}},
+            "is_working_day": {"$lte": [{"$isoDayOfWeek": "$day"}, 5]}}},
         {"$lookup": {"from": "employees", "let": {"dayStr": "$date"}, "pipeline": [
-            {"$match": {"department": department, "$expr": {"$lte": ["$joined_on", "$$dayStr"]}},
+            {"$match": {"department": department, "$expr": {"$lte": ["$joined_on", "$$dayStr"]}}},
             {"$count": "n"},
         ], "as": "_headcount"}},
-        {"$set": {"headcount": {"$ifNull": [{"$arrayElemAt": ["$_headcount.n", 0]}, 0]}},
-        {"$set": {"attendance_rate": {"$cond": [{"$and": ["$is_working_day", {"$gt": ["$headcount", 0]}]}, _round_half_up_expression({"$divide": ["$present_count", "$headcount"]}, 4), None]}},
-        {"$setWindowFields": {"sortBy": {"day": 1}, "output": {"_moving_avg_raw": {"$avg": "$attendance_rate", "window": {"documents": [-6, 0]}}}},
+        {"$set": {"headcount": {"$ifNull": [{"$arrayElemAt": ["$_headcount.n", 0]}, 0]}}},
+        {"$set": {"attendance_rate": {"$cond": [{"$and": ["$is_working_day", {"$gt": ["$headcount", 0]}]}, _round_half_up_expression({"$divide": ["$present_count", "$headcount"]}, 4), None]}}},
+        {"$setWindowFields": {"sortBy": {"day": 1}, "output": {"_moving_avg_raw": {"$avg": "$attendance_rate", "window": {"documents": [-6, 0]}}}}},
         {"$project": {"_id": 0, "date": 1, "is_working_day": 1, "headcount": 1, "present_count": 1, "late_count": 1, "attendance_rate": 1,
-            "moving_avg_7d": {"$cond": [{"$eq": ["$_moving_avg_raw", None]}, None, _round_half_up_expression("$_moving_avg_raw", 4)]}},
+            "moving_avg_7d": {"$cond": [{"$eq": ["$_moving_avg_raw", None]}, None, _round_half_up_expression("$_moving_avg_raw", 4)]}}},
         {"$sort": {"date": 1}},
     ]
 
