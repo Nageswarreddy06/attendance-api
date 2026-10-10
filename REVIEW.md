@@ -1,0 +1,13 @@
+# REVIEW.md
+
+| # | Where | Defect and how it shows up | Fix |
+|---|---|---|---|
+| 1 | `compute_late_minutes` | It replaced clock fields on the UTC punch-in instant and tested the integer minute count against the grace period after truncating. For example, 09:40:01 on a 09:30 shift incorrectly became 0 late minutes, and IST/overnight dates could be wrong. | Convert the instant to the assignment's IST attendance day, derive the scheduled shift start for that date (including overnight shifts), compare exact seconds to 600, then floor whole minutes. |
+| 2 | `compute_work_hours` and timestamp handling | Python's built-in `round` uses ties-to-even, while the contract requires half-up rounding. Incoming millisecond instants also need truncation to whole seconds before storage and calculations. | Truncate instants at the API boundary and use `Decimal` with `ROUND_HALF_UP` for hours. |
+| 3 | `compute_overtime` | The starter counted any non-negative overtime and did not move the shift end to the next day for an overnight shift. | Use the attendance-day schedule, shift end on the correct date, floor whole minutes, and require at least 30 minutes. |
+| 4 | Employee creation and request models | A check-then-insert duplicate path could race, and field formats, shift equality, timestamp types, and allowed punch-in statuses were not sufficiently constrained. | Enforce unique indexes, catch duplicate-key errors as 409, validate request fields strictly, and let the database guarantee uniqueness under concurrency. |
+| 5 | `GET /employees` | `total` counted the entire collection instead of the filtered set; results were not sorted by `emp_code` and page bounds were not enforced. | Count with the same filter, sort by `emp_code`, and enforce page/page-size limits. |
+| 6 | Punch-in and attendance listing | Punch-in used the UTC calendar date instead of the IST attendance day, did not handle overnight shift attribution, and could leak duplicate-key failures as 500. Listing loaded all matching documents and sorted/paginated in Python, which is too slow at 100k records. | Apply R1/R2, map duplicate-key errors to 409, validate date ranges, and perform match/sort/skip/limit in MongoDB with supporting indexes. |
+| 7 | Missing endpoints | Punch-out, regularization, analytics and explain endpoints were TODOs, so the advertised contract was incomplete. | Implement the missing routes, aggregation pipelines, audit history, and execution-stats explain response. |
+
+The starter's health endpoint and unique employee/attendance index intent were retained. The fixes preserve the natural keys (`emp_code` and `(emp_code, date)`) rather than exposing MongoDB `_id`.
